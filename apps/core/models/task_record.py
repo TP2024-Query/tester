@@ -17,6 +17,7 @@ class TaskRecord(BaseModel):
         OK = "ok", _("OK")
         INVALID = "invalid", _("Invalid")
         TIMEOUT = "timeout", _("Timeout")
+        SKIPPED = "skipped", _("Skipped")
         ERROR = "error", _("4xx or 500x")
 
     class DiffType(models.TextChoices):

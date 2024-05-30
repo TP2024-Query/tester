@@ -26,6 +26,7 @@ python-crontab = "^3.0"
 porcupine-python = "^0.5.0"
 django-api-forms = "1.0.0rc9"
 django-admin-extra-buttons = "^1.5.7"
+networkx = "^3.3"
 
 [tool.poetry.dev-dependencies]
 black = "^24.0"
