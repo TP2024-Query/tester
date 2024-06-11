@@ -140,18 +140,31 @@ class BasicJob:
             g.add_node(scenario['id'])
             if 'depends_on' in scenario:
                 for dep in scenario['depends_on']:
-                    g.add_edge(scenario['id'], dep)
+                    g.add_edge(dep, scenario['id'])  # depends_on indicates the direction of the edge
 
         try:
             sorted_scenario_ids = list(nx.algorithms.dag.topological_sort(g))
         except nx.NetworkXUnfeasible:
             print("Dependency Error: There are one or more cycles in your scenario dependencies. Can't resolve "
                   "dependency chain.")
-            return
+            sorted_scenario_ids = []
+            self._taskResult["message"] = "Dependency Error: There are one or more cycles in your scenario dependencies."
+            raise Exception("Circular dependency found! Halting execution.")
+        finally:
+            container.stop(timeout=5)
+            sleep(5)
+            container.remove(force=True)
+            try:
+                client.images.get(self._task['docker_image']).remove(force=True)
+            except ImageNotFound:
+                pass
 
-        sorted_scenarios = sorted(self._task['scenarios'], key=lambda x: sorted_scenario_ids.index(x['id']))
+        # In place sort to refill the scenarios list with sorted entries
+        self._task['scenarios'].sort(
+            key=lambda x: sorted_scenario_ids.index(x['id']) if x['id'] in sorted_scenario_ids else float('inf'))
 
-        for scenario in sorted_scenarios:
+
+        for scenario in self._task['scenarios']:
             url: string
             if os.getenv("DOCKER"):
                 container_ip = container.attrs["NetworkSettings"]["Networks"][settings.DBS_DOCKER_NETWORK]["IPAddress"]
@@ -162,7 +175,7 @@ class BasicJob:
             record: ScenarioResultJson = {
                 'id': scenario['id'],
                 'url': scenario['url'],
-                'status': scenario['status'],
+                'status': '',
                 'status_code': scenario['status_code'],
                 'ignored_properties': scenario['ignored_properties'],
                 'messages': [],
@@ -235,10 +248,12 @@ class BasicJob:
                         )
                         record["status"] = TaskRecord.Status.INVALID
                         record["messages"].append(f"JSON Mismatch")
+
                 except JSONDecodeError as e:
                     record["status"] = TaskRecord.Status.INVALID
                     record["messages"].append("Invalid JSON")
                     record["additional_data"]["exception"] = str(e)
+            record["status"] = TaskRecord.Status.OK
             scenario_results.append(record)
             self._taskResult["status"] = Task.Status.DONE
             self._taskResult['output'] = container.logs().decode()
@@ -257,6 +272,9 @@ class BasicJob:
 
     def cleanup(self):
         with connection.cursor() as cursor:
+            cursor.execute(f"REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM {self._database_name};")
+            cursor.execute(f"REVOKE ALL PRIVILEGES ON SCHEMA public FROM {self._database_name};")
+            cursor.execute(f"REVOKE CONNECT ON DATABASE {self._task['db_name']} FROM {self._database_name};")
             cursor.execute(f"DROP DATABASE IF EXISTS {self._database_name};")
             cursor.execute(f"DROP USER IF EXISTS {self._database_name};")
             connection.commit()
@@ -288,6 +306,7 @@ class BasicJob:
             self._taskResult['status'] = Task.Status.FAILED
             self._taskResult['message'] = str(e)
             self.redis.lpush('scenario_results_queue', json.dumps(self._taskResult))
+        finally:
             self.cleanup()
 
 
