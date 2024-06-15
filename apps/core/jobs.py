@@ -6,7 +6,7 @@ import string
 import uuid
 from difflib import HtmlDiff
 from json import JSONDecodeError
-from time import sleep, time
+from time import sleep
 import networkx as nx
 
 import docker
@@ -42,9 +42,7 @@ class ScenarioJson(TypedDict):
     url: str
     status_code: int
     ignored_properties: Optional[List[str]]
-    messages: Optional[List[str]]
     depends_on: Optional[List[uuid.UUID]]
-    additional_data: Optional[Dict[str, Any]]
     body: Optional[Dict[str, Any]]
     method: Optional[str]
     response: str
@@ -72,7 +70,13 @@ class BasicJob:
     def __init__(self, task_json: str, r: redis.Redis):
         self.redis = r
         self._task: TaskJson = json.loads(task_json)
-        self._taskResult = None
+        self._taskResult = {
+            "id": self._task["id"],
+            "db_name": self._task["db_name"],
+            "docker_image": self._task["docker_image"],
+            "status": self._task["status"],
+            "scenario_results": []
+        }
         self._database_name = "dbs_tmp_" + "".join(random.choices(string.ascii_letters, k=10)).lower()
         self._database_password = "".join(random.choices(string.ascii_letters, k=10)).lower()
 
@@ -100,13 +104,7 @@ class BasicJob:
         conn.close()
 
     def run(self):
-        self._taskResult = {
-            "id": self._task["id"],
-            "db_name": self._task["db_name"],
-            "docker_image": self._task["docker_image"],
-            "status": self._task["status"],
-            "scenario_results": []
-        }
+
 
         client = docker.from_env()
         params = {
@@ -135,7 +133,7 @@ class BasicJob:
 
         scenario_results = []
         g = nx.DiGraph()
-
+        sorted_scenario_ids=[]
         for scenario in self._task['scenarios']:
             g.add_node(scenario['id'])
             if 'depends_on' in scenario:
@@ -149,8 +147,8 @@ class BasicJob:
                   "dependency chain.")
             sorted_scenario_ids = []
             self._taskResult["message"] = "Dependency Error: There are one or more cycles in your scenario dependencies."
-            raise Exception("Circular dependency found! Halting execution.")
-        finally:
+
+
             container.stop(timeout=5)
             sleep(5)
             container.remove(force=True)
@@ -158,6 +156,8 @@ class BasicJob:
                 client.images.get(self._task['docker_image']).remove(force=True)
             except ImageNotFound:
                 pass
+
+            raise Exception("Circular dependency found! Halting execution.")
 
         # In place sort to refill the scenarios list with sorted entries
         self._task['scenarios'].sort(
@@ -257,6 +257,7 @@ class BasicJob:
             scenario_results.append(record)
             self._taskResult["status"] = Task.Status.DONE
             self._taskResult['output'] = container.logs().decode()
+            self._taskResult["message"]= 'null'
             self._taskResult['scenario_results'] = scenario_results
         # replacing the self._task.status = Task.Status.DONE and self._task.save() calls
         self.redis.lpush('scenario_results_queue', json.dumps(self._taskResult))

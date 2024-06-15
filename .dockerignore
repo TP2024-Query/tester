@@ -10,3 +10,4 @@ data/
 .gitignore
 tmp/
 static/
+node_modules/

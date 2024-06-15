@@ -71,3 +71,10 @@ RUN chmod +x conf/worker_probe.sh
 HEALTHCHECK CMD conf/worker_probe.sh
 
 CMD ["conf/worker_entrypoint.sh"]
+
+
+FROM base as runner
+
+RUN chmod +x conf/runner_entrypoint.sh
+
+CMD ["conf/runner_entrypoint.sh"]

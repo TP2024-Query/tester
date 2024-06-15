@@ -43,6 +43,33 @@ services:
     scale: 4
     depends_on:
       - server
+  runner:
+    build:
+      context: .
+      target: runner
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./data/databases:/var/databases
+    environment:
+      DATABASE_HOST: ${DATABASE_HOST}
+      DATABASE_NAME: ${DATABASE_NAME}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+      DATABASE_PORT: ${DATABASE_PORT}
+      DATABASE_USER: ${DATABASE_USER}
+      DJANGO_SETTINGS_MODULE: ${DJANGO_SETTINGS_MODULE}
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
+      GITHUB_USER: ${GITHUB_USER}
+      REDIS_HOST: ${REDIS_HOST}
+      PROC_COUNT: ${PROC_COUNT}
+      SECRET_KEY: ${SECRET_KEY}
+  pgsql:
+    image: 'postgres'
+    ports:
+      - '${FORWARD_DB_PORT:-5432}:5432'
+    environment:
+      POSTGRES_DB: '${DATABASE_NAME}'
+      POSTGRES_USER: '${DATABASE_USER}'
+      POSTGRES_PASSWORD: '${DATABASE_PASSWORD}'
 networks:
   intranet:
     name: dbs
