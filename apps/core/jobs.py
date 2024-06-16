@@ -255,10 +255,10 @@ class BasicJob:
                     record["additional_data"]["exception"] = str(e)
             record["status"] = TaskRecord.Status.OK
             scenario_results.append(record)
-            self._taskResult["status"] = Task.Status.DONE
-            self._taskResult['output'] = container.logs().decode()
-            self._taskResult["message"]= 'null'
-            self._taskResult['scenario_results'] = scenario_results
+        self._taskResult["status"] = Task.Status.DONE
+        self._taskResult['output'] = container.logs().decode()
+        self._taskResult["message"]= 'null'
+        self._taskResult['scenario_results'] = scenario_results
         # replacing the self._task.status = Task.Status.DONE and self._task.save() calls
         self.redis.lpush('scenario_results_queue', json.dumps(self._taskResult))
 
