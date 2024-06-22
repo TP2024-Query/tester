@@ -1,7 +1,5 @@
-import logging
 import os
 import signal
-from multiprocessing import Pool
 import concurrent.futures
 import redis
 from django.conf import settings

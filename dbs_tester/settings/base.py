@@ -23,8 +23,6 @@ from sentry_sdk.integrations.rq import RqIntegration
 
 BASE_DIR = Path(__file__).resolve(strict=True).parent.parent.parent
 ENV_FILE = os.path.join(BASE_DIR, ".env")
-LOG_DIR = os.path.join(BASE_DIR, "logs")
-PRIVATE_DIR = os.path.join(BASE_DIR, "private")
 BUILD_FILE = Path(f"{BASE_DIR}/BUILD.txt")
 
 # .env
@@ -53,57 +51,15 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = []
-
-
 # Application definition
 INSTALLED_APPS = [
-    "django.contrib.admin",
-    "django.contrib.auth",
-    "django.contrib.contenttypes",
-    "django.contrib.sessions",
-    "django.contrib.messages",
-    "django.contrib.staticfiles",
     "django.contrib.postgres",
     "django.forms",
     "django_rq",
     "django_bootstrap5",
     "admin_extra_buttons",
     "apps.core",
-    "apps.web",
-    "apps.api",
 ]
-
-MIDDLEWARE = [
-    "django.middleware.security.SecurityMiddleware",
-    "django.contrib.sessions.middleware.SessionMiddleware",
-    "django.middleware.common.CommonMiddleware",
-    "django.middleware.csrf.CsrfViewMiddleware",
-    "django.contrib.auth.middleware.AuthenticationMiddleware",
-    "django.contrib.messages.middleware.MessageMiddleware",
-]
-
-ROOT_URLCONF = "dbs_tester.urls"
-
-TEMPLATES = [
-    {
-        "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / "templates"],
-        "APP_DIRS": True,
-        "OPTIONS": {
-            "context_processors": [
-                "django.template.context_processors.debug",
-                "django.template.context_processors.request",
-                "django.contrib.auth.context_processors.auth",
-                "django.contrib.messages.context_processors.messages",
-                "apps.web.context_processors.info",
-            ],
-        },
-    },
-]
-
-WSGI_APPLICATION = "dbs_tester.wsgi.application"
-
 
 # Database
 # https://docs.djangoproject.com/en/3.1/ref/settings/#databases
@@ -120,65 +76,6 @@ DATABASES = {
 }
 
 DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
-
-
-# Password validation
-# https://docs.djangoproject.com/en/3.1/ref/settings/#auth-password-validators
-
-AUTH_PASSWORD_VALIDATORS = [
-    {
-        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
-    },
-    {
-        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
-    },
-    {
-        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
-    },
-    {
-        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
-    },
-]
-
-PASSWORD_HASHERS = [
-    "django.contrib.auth.hashers.Argon2PasswordHasher",
-    "django.contrib.auth.hashers.PBKDF2PasswordHasher",
-    "django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher",
-    "django.contrib.auth.hashers.BCryptSHA256PasswordHasher",
-]
-
-AUTHENTICATION_BACKENDS = ["django.contrib.auth.backends.ModelBackend", "apps.core.auth.LdapBackend"]
-
-LOGOUT_REDIRECT_URL = "/"
-LOGIN_REDIRECT_URL = "/"
-
-
-# Internationalization
-# https://docs.djangoproject.com/en/3.1/topics/i18n/
-
-LANGUAGE_CODE = "en"
-
-TIME_ZONE = "UTC"
-
-DATETIME_INPUT_FORMATS = ("%Y-%m-%dT%H:%M:%S%z",)
-
-USE_I18N = True
-
-USE_L10N = True
-
-USE_TZ = True
-
-
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/3.1/howto/static-files/
-
-STATIC_URL = "/static/"
-STATIC_ROOT = os.path.join(BASE_DIR, "static")
-
-MEDIA_URL = "/media/"
-MEDIA_ROOT = os.path.join(BASE_DIR, "media")
-
-DATA_UPLOAD_MAX_MEMORY_SIZE = 1024 * 1024 * 50  # 50MB
 
 RQ_QUEUES = {
     "default": {
@@ -207,11 +104,11 @@ if os.getenv("SENTRY_DSN", False):
 
         return event
 
+
     sentry_sdk.init(
         integrations=[RedisIntegration(), RqIntegration(), DjangoIntegration()],
         attach_stacktrace=True,
         send_default_pii=True,
-        request_bodies="always",
         before_send=before_send,
         release=VERSION,
     )

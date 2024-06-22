@@ -1,9 +1,6 @@
 import docker
 from django.core.management import BaseCommand
-from django.db import connection
 from django.utils import timezone
-
-from apps.core.models import Task
 
 
 class Command(BaseCommand):
@@ -17,11 +14,7 @@ class Command(BaseCommand):
         client.containers.prune()
         client.images.prune(filters={"dangling": False, "until": "5m"})
 
-        for task in Task.objects.filter(status=Task.Status.FAILED, additional_information__database__isnull=False):
-            with connection.cursor() as cursor:
-                cursor.execute(f"DROP DATABASE IF EXISTS {task.additional_information['database']['name']};")
-                cursor.execute(f"DROP USER IF EXISTS {task.additional_information['database']['name']};")
-                connection.commit()
+        # TODO REMOVE UNUSED ROLES IN DATABASE
 
         self.stdout.write(f"Finished: {timezone.now().isoformat()}")
         self.stdout.write(f"Duration: {timezone.now() - started_at}")

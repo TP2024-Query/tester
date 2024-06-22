@@ -3,7 +3,6 @@ import logging
 import os
 import random
 import string
-import uuid
 from difflib import HtmlDiff
 from json import JSONDecodeError
 from time import sleep
@@ -19,51 +18,10 @@ from django.utils.translation import gettext as _
 from docker.errors import ImageNotFound
 from requests import Timeout, Session, Request
 
-from typing import List, Optional, TypedDict, Dict, Any
+from typing import Optional
 
-from apps.core.models import TaskRecord, Task
-
-
-class ScenarioResultJson(TypedDict):
-    id: uuid.UUID
-    url: str
-    status: str
-    status_code: int
-    ignored_properties: Optional[List[str]]
-    messages: Optional[List[str]]
-    diff: Optional[str]
-    additional_data: Optional[Dict[str, Any]]
-    duration: str
-    response: str
-
-
-class ScenarioJson(TypedDict):
-    id: uuid.UUID
-    url: str
-    status_code: int
-    ignored_properties: Optional[List[str]]
-    depends_on: Optional[List[uuid.UUID]]
-    body: Optional[Dict[str, Any]]
-    method: Optional[str]
-    response: str
-
-
-class TaskJson(TypedDict):
-    id: uuid.UUID
-    docker_image: str
-    db_name: str
-    status: str
-    scenarios: List[ScenarioJson]
-
-
-class TaskResultJson(TypedDict):
-    id: uuid.UUID
-    docker_image: str
-    db_name: str
-    status: str
-    message: str
-    output: str
-    scenario_results: List[ScenarioResultJson]
+from apps.core.classes.scenario_record import ScenarioResultJson, ScenarioStatus
+from apps.core.classes.task import TaskJson, Status
 
 
 class BasicJob:
@@ -105,7 +63,6 @@ class BasicJob:
 
     def run(self):
 
-
         client = docker.from_env()
         params = {
             "image": self._task['docker_image'],
@@ -133,7 +90,7 @@ class BasicJob:
 
         scenario_results = []
         g = nx.DiGraph()
-        sorted_scenario_ids=[]
+        sorted_scenario_ids = []
         for scenario in self._task['scenarios']:
             g.add_node(scenario['id'])
             if 'depends_on' in scenario:
@@ -146,8 +103,8 @@ class BasicJob:
             print("Dependency Error: There are one or more cycles in your scenario dependencies. Can't resolve "
                   "dependency chain.")
             sorted_scenario_ids = []
-            self._taskResult["message"] = "Dependency Error: There are one or more cycles in your scenario dependencies."
-
+            self._taskResult[
+                "message"] = "Dependency Error: There are one or more cycles in your scenario dependencies."
 
             container.stop(timeout=5)
             sleep(5)
@@ -162,7 +119,6 @@ class BasicJob:
         # In place sort to refill the scenarios list with sorted entries
         self._task['scenarios'].sort(
             key=lambda x: sorted_scenario_ids.index(x['id']) if x['id'] in sorted_scenario_ids else float('inf'))
-
 
         for scenario in self._task['scenarios']:
             url: string
@@ -188,8 +144,8 @@ class BasicJob:
             if 'depends_on' in scenario:
                 dependent_scenario_result = next((r for r in scenario_results if r['id'] == scenario['depends_on']),
                                                  None)
-                if dependent_scenario_result and dependent_scenario_result['status'] != TaskRecord.Status.OK:
-                    record['status'] = TaskRecord.Status.SKIPPED
+                if dependent_scenario_result and dependent_scenario_result['status'] != ScenarioStatus.OK:
+                    record['status'] = ScenarioStatus.SKIPPED
                     record['messages'].append('Scenario skipped')
                     scenario_results.append(record)
                     continue
@@ -204,11 +160,11 @@ class BasicJob:
             try:
                 r = s.send(req.prepare(), timeout=settings.DBS_TESTER_TIMEOUT)
             except Timeout as e:
-                record['status'] = TaskRecord.Status.TIMEOUT
+                record['status'] = ScenarioStatus.TIMEOUT
                 record['messages'].append(str(e))
                 continue
             except BaseException as e:
-                record['status'] = TaskRecord.Status.ERROR
+                record['status'] = ScenarioStatus.ERROR
                 record['messages'].append(str(e))
                 continue
 
@@ -216,7 +172,7 @@ class BasicJob:
             record['response'] = str(r.content)
 
             if r.status_code != scenario['status_code']:
-                record['status'] = TaskRecord.Status.INVALID
+                record['status'] = ScenarioStatus.INVALID
                 record['messages'].append(
                     f"Invalid HTTP Status code (received={r.status_code}, expected={scenario['status_code']})"
                 )
@@ -246,20 +202,20 @@ class BasicJob:
                             fromdesc=_("Valid response"),
                             todesc=_("Your response"),
                         )
-                        record["status"] = TaskRecord.Status.INVALID
+                        record["status"] = ScenarioStatus.INVALID
                         record["messages"].append(f"JSON Mismatch")
 
                 except JSONDecodeError as e:
-                    record["status"] = TaskRecord.Status.INVALID
+                    record["status"] = ScenarioStatus.INVALID
                     record["messages"].append("Invalid JSON")
                     record["additional_data"]["exception"] = str(e)
-            record["status"] = TaskRecord.Status.OK
+            record["status"] = ScenarioStatus.OK
             scenario_results.append(record)
-        self._taskResult["status"] = Task.Status.DONE
+        self._taskResult["status"] = Status.DONE
         self._taskResult['output'] = container.logs().decode()
-        self._taskResult["message"]= 'null'
+        self._taskResult["message"] = 'null'
         self._taskResult['scenario_results'] = scenario_results
-        # replacing the self._task.status = Task.Status.DONE and self._task.save() calls
+        # replacing the self._Status = Status.DONE and self._task.save() calls
         self.redis.lpush('scenario_results_queue', json.dumps(self._taskResult))
 
         # Cleanup
@@ -283,7 +239,7 @@ class BasicJob:
     def execute(self):
         try:
             task_status = self._task.get('status')
-            if task_status != Task.Status.PENDING:
+            if task_status != Status.PENDING.value:
                 logging.warning("Task is already done! Skipping.")
                 return
             self.prepare()
@@ -291,7 +247,7 @@ class BasicJob:
                 self.run()
                 print("Task is done!", flush=True)
             except (BaseException, Exception, TypeError) as e:
-                self._taskResult['status'] = Task.Status.FAILED
+                self._taskResult['status'] = Status.FAILED
                 self._taskResult['message'] = str(e)
                 self.redis.lpush('scenario_results_queue', json.dumps(self._taskResult))
 
@@ -304,7 +260,7 @@ class BasicJob:
 
         except Exception as e:
             logging.error(f"An exception occurred: {e}")
-            self._taskResult['status'] = Task.Status.FAILED
+            self._taskResult['status'] = Status.FAILED
             self._taskResult['message'] = str(e)
             self.redis.lpush('scenario_results_queue', json.dumps(self._taskResult))
         finally:
