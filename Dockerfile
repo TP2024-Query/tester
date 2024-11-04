@@ -21,6 +21,7 @@ RUN pip install --user gunicorn wheel --no-cache-dir
 RUN pip install --user -r requirements.txt --no-cache-dir
 
 # JavaScript
+COPY package.json /usr/src/app/package.json
 RUN npm i
 RUN npm run build
 
