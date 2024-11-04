@@ -41,6 +41,9 @@ jobs:
       - name: Create requirements.txt
         run: |
           poetry export -f requirements.txt --without-hashes --output requirements.txt
+      - name: Copy package.json
+        run: |
+          cp ./package.json /usr/src/app/package.json
 
       # Login against a Docker registry except on PR
       # https://github.com/docker/login-action
