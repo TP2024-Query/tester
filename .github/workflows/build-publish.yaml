@@ -41,6 +41,7 @@ jobs:
       - name: Create requirements.txt
         run: |
           poetry export -f requirements.txt --without-hashes --output requirements.txt
+          cat requirements.txt
 
       # Login against a Docker registry except on PR
       # https://github.com/docker/login-action
