@@ -18,9 +18,6 @@ jobs:
           pipx install poetry
           pipx inject poetry poetry-plugin-export
 
-      - name: Create requirements.txt
-        run: |
-          poetry export -f requirements.txt --without-hashes --output requirements.txt
       - uses: actions/checkout@v4
       
       - name: Login
