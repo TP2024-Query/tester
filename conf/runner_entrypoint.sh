@@ -7,4 +7,4 @@ done
 
 echo "$GITHUB_TOKEN" | docker login ghcr.io -u $GITHUB_USER --password-stdin
 
-python3 manage.py base --processes "$PROC_COUNT"
+python3 manage.py runner --processes "$PROC_COUNT"
