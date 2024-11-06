@@ -44,31 +44,9 @@ ENV VIRTUAL_ENV=/opt/venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 ENV DOCKER=1
 
-FROM base as server
 
-RUN apt install -y supervisor curl nginx cron
+FROM base as runner
 
-# nginx
-COPY conf/http.conf /etc/nginx/sites-available/tester-dbs.fiit.stuba.sk
-COPY conf/nginx.conf /etc/nginx/nginx.conf
-RUN ln -s /etc/nginx/sites-available/tester-dbs.fiit.stuba.sk /etc/nginx/sites-enabled/tester-dbs.fiit.stuba.sk
-RUN rm -f /etc/nginx/sites-enabled/default
+RUN chmod +x conf/runner_entrypoint.sh
 
-# supervisord
-COPY conf/supervisor.conf /etc/supervisor/supervisord.conf
-
-# Health check
-HEALTHCHECK CMD curl --fail http://localhost:9000/api/v1/status || exit 1
-
-# Execution
-RUN chmod +x conf/server_entrypoint.sh
-CMD ["conf/server_entrypoint.sh"]
-
-FROM base as worker
-
-RUN chmod +x conf/worker_entrypoint.sh
-RUN chmod +x conf/worker_probe.sh
-
-HEALTHCHECK CMD conf/worker_probe.sh
-
-CMD ["conf/worker_entrypoint.sh"]
+CMD ["conf/runner_entrypoint.sh"]
