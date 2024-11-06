@@ -1,32 +1,15 @@
 name: Build/publish runner image
 
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
-
 on:
   push:
-    branches: [ rework ]
-    # Publish semver tags as releases.
-    tags: [ '*.*.*' ]
-
-env:
-  # Use docker.io for Docker Hub if empty
-  REGISTRY: ghcr.io
-  # github.repository as <account>/<repo>
-  IMAGE_NAME: ${{ github.repository }}-runner
-  DOCKER_BUILDKIT: 1
+    branches: [ runner ]
 
 
 jobs:
   build:
-
+    permissions: write-all
+    name: Build and publish
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
     steps:
       - name: Install poetry
         run: |
@@ -35,41 +18,47 @@ jobs:
           pipx install poetry
           pipx inject poetry poetry-plugin-export
 
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
       - name: Create requirements.txt
         run: |
           poetry export -f requirements.txt --without-hashes --output requirements.txt
+      - uses: actions/checkout@v4
+      
+      - name: Login
+        run: echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+        
+      - name: Build the docker image
+        run: docker build . --file Dockerfile --tag ghcr.io/tp2024-query/tester-runner:latest
 
-      # Login against a Docker registry except on PR
-      # https://github.com/docker/login-action
-      - name: Log into registry ${{ env.REGISTRY }}
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish the Docker image
+        run: docker push ghcr.io/tp2024-query/tester-runner:latest
+      
+  deploy:
+    needs: build
+    name: Deploy
+    runs-on: ubuntu-latest
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # Extract metadata (tags, labels) for Docker
-      # https://github.com/docker/metadata-action
-      - name: Extract Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-
-      # Build and push Docker image with Buildx (don't push on PR)
-      # https://github.com/docker/build-push-action
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          target: runner
+    steps:
+      - name: Connect VPN
+        run: |
+          sudo apt update
+          sudo apt install -y openvpn openvpn-systemd-resolved
+          echo "${{ secrets.OVPN_CONFIG }}" > vpn-config.ovpn
+          echo "${{ secrets.OVPN_USER }}" > vpn-credentials.txt
+          echo "${{ secrets.OVPN_PASS }}" >> vpn-credentials.txt
+          sudo openvpn --config vpn-config.ovpn --auth-user-pass vpn-credentials.txt --daemon
+          sleep 15
+      - name: Install ssh keys
+        run: |
+          install -m 600 -D /dev/null ~/.ssh/id_rsa
+          echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} > ~/.ssh/known_hosts
+      - name: Connect and pull
+        run: ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "cd ${{ secrets.WORK_DIR }}/query-deployment && sudo docker-compose pull && sudo docker-compose up -d --force-recreate && exit"
+      - name: Prune old images
+        run: ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "sudo docker image prune -f"
+      - name: Cleanup
+        run: |
+          rm -rf ~/.ssh
+          rm vpn-credentials.txt
+          rm vpn-config.ovpn
+          sudo killall openvpn
