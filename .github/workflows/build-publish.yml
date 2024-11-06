@@ -33,10 +33,10 @@ jobs:
         run: echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
         
       - name: Build the docker image
-        run: docker build . --file Dockerfile --tag ghcr.io/tp2024-query/tester-runner:latest
+        run: docker build . --file Dockerfile --tag ghcr.io/tp2024-query/runner:latest
 
       - name: Publish the Docker image
-        run: docker push ghcr.io/tp2024-query/tester-runner:latest
+        run: docker push ghcr.io/tp2024-query/runner:latest
       
   deploy:
     needs: build
