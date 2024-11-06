@@ -23,10 +23,11 @@ jobs:
           pipx ensurepath
           pipx install poetry
           pipx inject poetry poetry-plugin-export
+      - name: Checkout repository
+        uses: actions/checkout@v4
       - name: Create requirements.txt
         run: |
           poetry export -f requirements.txt --without-hashes --output requirements.txt
-      - uses: actions/checkout@v4
       
       - name: Login
         run: echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
